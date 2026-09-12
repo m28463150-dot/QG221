@@ -1,0 +1,6 @@
+{
+  "name": "QUAY GUET 221",
+  "description": "Plateforme Mobile de Streaming Musical & Billetterie Live Intégrée au Sénégal (Jekk naa ci Quay bi)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
