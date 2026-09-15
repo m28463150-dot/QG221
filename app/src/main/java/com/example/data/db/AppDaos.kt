@@ -228,3 +228,28 @@ interface NotificationDao {
     suspend fun deleteNotification(id: String)
 }
 
+@Dao
+interface CommentDao {
+    @Query("SELECT * FROM track_comments WHERE trackId = :trackId ORDER BY createdAt DESC")
+    fun getCommentsForTrack(trackId: String): Flow<List<TrackCommentEntity>>
+
+    @Query("SELECT COUNT(*) FROM track_comments WHERE trackId = :trackId")
+    fun getCommentsCountForTrack(trackId: String): Flow<Int>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertComment(comment: TrackCommentEntity)
+
+    @Query("UPDATE track_comments SET likesCount = likesCount + 1 WHERE id = :commentId")
+    suspend fun likeComment(commentId: String)
+}
+
+@Dao
+interface TipDao {
+    @Query("SELECT * FROM artist_tips WHERE artistId = :artistId ORDER BY timestamp DESC")
+    fun getTipsForArtist(artistId: String): Flow<List<ArtistTipEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTip(tip: ArtistTipEntity)
+}
+
+

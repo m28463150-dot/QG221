@@ -19,6 +19,8 @@ class QuayGuetRepository(private val context: Context) {
     private val transactionDao = db.transactionDao()
     private val playlistDao = db.playlistDao()
     private val notificationDao = db.notificationDao()
+    private val commentDao = db.commentDao()
+    private val tipDao = db.tipDao()
 
     // Offline scanner local memory cache for network drops during concerts
     private val localScannedCache = mutableMapOf<String, Long>()
@@ -370,6 +372,41 @@ class QuayGuetRepository(private val context: Context) {
                 message = "Profitez du streaming sans pub et réservez vos billets de concert en 1 clic avec Wave ou Orange Money.",
                 type = "info",
                 isRead = true
+            )
+        )
+
+        // 11. Seed Initial Comments (Community)
+        commentDao.insertComment(
+            TrackCommentEntity(
+                id = "comment_1",
+                trackId = "track_1",
+                authorName = "Babacar Diop",
+                text = "Ce refrain me rappelle les retours de pirogue au crépuscule à Guet Ndar... Frissons garantis ! 🇸🇳❤️",
+                timestampSec = 45,
+                timestampText = "00:45",
+                likesCount = 24
+            )
+        )
+        commentDao.insertComment(
+            TrackCommentEntity(
+                id = "comment_2",
+                trackId = "track_1",
+                authorName = "Fatou Kiné",
+                text = "Le solo de xalam à 01:30 est juste magistral. Fier de notre culture saint-louisienne !",
+                timestampSec = 90,
+                timestampText = "01:30",
+                likesCount = 18
+            )
+        )
+        commentDao.insertComment(
+            TrackCommentEntity(
+                id = "comment_3",
+                trackId = "track_2",
+                authorName = "Cheikh Ndar",
+                text = "Ngaaka a tué le beat 🔥🔥 Le flow à 01:15 est trop rapide pour les jaloux !",
+                timestampSec = 75,
+                timestampText = "01:15",
+                likesCount = 37
             )
         )
     }
@@ -810,4 +847,108 @@ class QuayGuetRepository(private val context: Context) {
             )
         }
     }
+
+    // --- TRACK COMMENTS (COMMUNITY) ---
+    fun getCommentsForTrack(trackId: String): Flow<List<TrackCommentEntity>> =
+        commentDao.getCommentsForTrack(trackId)
+
+    fun getCommentsCountForTrack(trackId: String): Flow<Int> =
+        commentDao.getCommentsCountForTrack(trackId)
+
+    suspend fun addComment(
+        trackId: String,
+        authorName: String,
+        text: String,
+        timestampSec: Int = 0,
+        timestampText: String = ""
+    ) = withContext(Dispatchers.IO) {
+        val comment = TrackCommentEntity(
+            trackId = trackId,
+            authorName = authorName.ifBlank { "Mélomane du 221" },
+            text = text,
+            timestampSec = timestampSec,
+            timestampText = timestampText,
+            likesCount = 0,
+            createdAt = System.currentTimeMillis()
+        )
+        commentDao.insertComment(comment)
+    }
+
+    suspend fun likeComment(commentId: String) = withContext(Dispatchers.IO) {
+        commentDao.likeComment(commentId)
+    }
+
+    // --- ARTIST TIPPING / SUPPORTERS ---
+    suspend fun sendTipToArtist(
+        artistId: String,
+        artistName: String,
+        trackId: String?,
+        trackTitle: String?,
+        senderName: String,
+        amountCfa: Int,
+        provider: String,
+        message: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        // 1. Credit artist wallet (100% direct tip to artist!)
+        val currentWallet = transactionDao.getArtistWallet(artistId)
+        if (currentWallet != null) {
+            transactionDao.insertOrUpdateWallet(
+                currentWallet.copy(balanceCfa = currentWallet.balanceCfa + amountCfa)
+            )
+        } else {
+            transactionDao.insertOrUpdateWallet(
+                ArtistWalletEntity(
+                    artistId = artistId,
+                    stageName = artistName,
+                    balanceCfa = amountCfa,
+                    pendingWithdrawalCfa = 0,
+                    totalTicketsSold = 0,
+                    provider = provider
+                )
+            )
+        }
+
+        // 2. Insert Tip Record
+        tipDao.insertTip(
+            ArtistTipEntity(
+                artistId = artistId,
+                artistName = artistName,
+                trackId = trackId,
+                trackTitle = trackTitle,
+                senderName = senderName.ifBlank { "Supporter Anonyme" },
+                amountCfa = amountCfa,
+                provider = provider,
+                message = message,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+
+        // 3. Register transaction receipt
+        transactionDao.insertTransaction(
+            TransactionEntity(
+                userId = senderName.ifBlank { "supporter_221" },
+                type = "tip",
+                amountCfa = amountCfa,
+                provider = provider,
+                providerTransactionId = "TIP-${UUID.randomUUID().toString().take(8).uppercase()}",
+                status = "SUCCESS",
+                description = "Pourboire $provider à $artistName ($amountCfa FCFA)"
+            )
+        )
+
+        // 4. In-App notification
+        notificationDao.insertNotification(
+            AppNotificationEntity(
+                title = "🎉 Soutien envoyé à $artistName",
+                message = "Votre pourboire de $amountCfa FCFA via $provider a bien été crédité sur le portefeuille de l'artiste. Jërëjëf !",
+                type = "info",
+                targetId = artistId
+            )
+        )
+
+        true
+    }
+
+    fun getTipsForArtist(artistId: String): Flow<List<ArtistTipEntity>> =
+        tipDao.getTipsForArtist(artistId)
 }

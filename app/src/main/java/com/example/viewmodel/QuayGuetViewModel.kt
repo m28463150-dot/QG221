@@ -20,6 +20,7 @@ sealed class ScreenNav {
     object ArtistSpace : ScreenNav()
     object Scanner : ScreenNav()
     object Admin : ScreenNav()
+    object TopCharts : ScreenNav()
     data class EventDetail(val eventId: String) : ScreenNav()
     data class ArtistProfile(val artistId: String) : ScreenNav()
 }
@@ -127,6 +128,60 @@ class QuayGuetViewModel(application: Application) : AndroidViewModel(application
     // Artist presentation state
     private val _selectedArtistBio = MutableStateFlow<ArtistBio?>(null)
     val selectedArtistBio: StateFlow<ArtistBio?> = _selectedArtistBio.asStateFlow()
+
+    // Comments Modal State
+    private val _activeCommentsTrack = MutableStateFlow<TrackEntity?>(null)
+    val activeCommentsTrack: StateFlow<TrackEntity?> = _activeCommentsTrack.asStateFlow()
+
+    val currentTrackComments: StateFlow<List<TrackCommentEntity>> = _activeCommentsTrack.flatMapLatest { track ->
+        if (track != null) repository.getCommentsForTrack(track.id) else flowOf(emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Tipping Modal State
+    private val _tippingTrack = MutableStateFlow<TrackEntity?>(null)
+    val tippingTrack: StateFlow<TrackEntity?> = _tippingTrack.asStateFlow()
+
+    // Equalizer Sheet State
+    private val _isEqualizerOpen = MutableStateFlow(false)
+    val isEqualizerOpen: StateFlow<Boolean> = _isEqualizerOpen.asStateFlow()
+
+    // Top Charts Period & State
+    private val _selectedChartPeriod = MutableStateFlow("top20") // "top20", "24h", "saint_louis"
+    val selectedChartPeriod: StateFlow<String> = _selectedChartPeriod.asStateFlow()
+
+    val dynamicCharts: StateFlow<List<ChartRankItem>> = combine(allTracks, _selectedChartPeriod) { tracks, period ->
+        val sorted = when (period) {
+            "24h" -> tracks.sortedByDescending { it.plays * 3 + it.likes * 5 }
+            "saint_louis" -> tracks.filter { it.city.contains("Saint-Louis", ignoreCase = true) || it.artistName.contains("Ndar", ignoreCase = true) }
+                .ifEmpty { tracks }
+                .sortedByDescending { it.plays + it.likes }
+            else -> tracks.sortedByDescending { it.plays }
+        }
+        sorted.mapIndexed { index, track ->
+            val rank = index + 1
+            val prevRank = when (rank) {
+                1 -> 2
+                2 -> 1
+                3 -> 3
+                4 -> 6
+                5 -> 4
+                else -> if (rank % 2 == 0) rank + 1 else rank - 1
+            }
+            val trend = when {
+                rank < prevRank -> "UP"
+                rank > prevRank -> "DOWN"
+                rank == 5 -> "NEW"
+                else -> "SAME"
+            }
+            ChartRankItem(
+                track = track,
+                rank = rank,
+                previousRank = prevRank,
+                trend = trend,
+                weeklyStreams = (track.plays * 1.8).toInt() + (index * 420)
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Feedback message
     private val _userMessage = MutableStateFlow<String?>(null)
@@ -510,6 +565,117 @@ class QuayGuetViewModel(application: Application) : AndroidViewModel(application
 
     fun closeArtistBio() {
         _selectedArtistBio.value = null
+    }
+
+    // --- PLAYBACK DELEGATES FOR SYSTEM CONTROLS ---
+    fun togglePlayPause() {
+        audioPlayer.togglePlayPause()
+    }
+
+    fun nextTrack() {
+        audioPlayer.next()
+    }
+
+    fun previousTrack() {
+        audioPlayer.previous()
+    }
+
+    fun seekTo(seconds: Int) {
+        audioPlayer.seekTo(seconds)
+    }
+
+    // --- EQUALIZER ACTIONS ---
+    fun openEqualizer() {
+        _isEqualizerOpen.value = true
+    }
+
+    fun closeEqualizer() {
+        _isEqualizerOpen.value = false
+    }
+
+    fun setEqualizerProfile(profile: EqualizerProfile) {
+        audioPlayer.setEqualizerProfile(profile)
+    }
+
+    fun setBandGain(bandIndex: Int, gainDb: Float) {
+        audioPlayer.setBandGain(bandIndex, gainDb)
+    }
+
+    fun resetEqualizerBands() {
+        audioPlayer.resetEqualizerBands()
+        _userMessage.value = "Égaliseur réinitialisé (0 dB)"
+    }
+
+    fun setBassBoost(percent: Int) {
+        audioPlayer.setBassBoost(percent)
+    }
+
+    fun toggleEqualizer() {
+        audioPlayer.toggleEqualizer()
+    }
+
+    // --- COMMENTS ACTIONS (AUDIOMACK / BOOMPLAY STYLE) ---
+    fun openComments(track: TrackEntity) {
+        _activeCommentsTrack.value = track
+    }
+
+    fun closeComments() {
+        _activeCommentsTrack.value = null
+    }
+
+    fun postComment(text: String, timestampSec: Int = 0, timestampText: String = "") {
+        val track = _activeCommentsTrack.value ?: return
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            repository.addComment(
+                trackId = track.id,
+                authorName = _currentUser.value.username,
+                text = text.trim(),
+                timestampSec = timestampSec,
+                timestampText = timestampText
+            )
+            _userMessage.value = "Commentaire publié sur « ${track.title} » !"
+        }
+    }
+
+    fun likeComment(commentId: String) {
+        viewModelScope.launch {
+            repository.likeComment(commentId)
+        }
+    }
+
+    // --- ARTIST TIPPING / SUPPORTERS (BOOMPLAY / AUDIOMACK TIPPING) ---
+    fun openTipModal(track: TrackEntity) {
+        _tippingTrack.value = track
+    }
+
+    fun closeTipModal() {
+        _tippingTrack.value = null
+    }
+
+    fun sendTip(amountCfa: Int, provider: String, message: String) {
+        val track = _tippingTrack.value ?: return
+        viewModelScope.launch {
+            val success = repository.sendTipToArtist(
+                artistId = track.artistId,
+                artistName = track.artistName,
+                trackId = track.id,
+                trackTitle = track.title,
+                senderName = _currentUser.value.username,
+                amountCfa = amountCfa,
+                provider = provider,
+                message = message
+            )
+            _tippingTrack.value = null
+            if (success) {
+                _userMessage.value = "❤️ Pourboire de $amountCfa FCFA ($provider) envoyé avec succès à ${track.artistName} !"
+            }
+        }
+    }
+
+    // --- CHARTS PERIOD ---
+    fun setChartPeriod(period: String) {
+        _selectedChartPeriod.value = period
     }
 
     fun dismissUserMessage() {

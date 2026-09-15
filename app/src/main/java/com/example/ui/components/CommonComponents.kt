@@ -38,6 +38,8 @@ fun QuayTopBar(
     currentUser: UserEntity,
     isOfflineMode: Boolean,
     isProUser: Boolean = false,
+    unreadNotificationCount: Int = 0,
+    onOpenNotifications: () -> Unit = {},
     onToggleOffline: () -> Unit,
     onSwitchUserRole: (String) -> Unit,
     onOpenPro: (() -> Unit)? = null
@@ -159,11 +161,39 @@ fun QuayTopBar(
                     }
                 }
 
-                // Actions: Offline toggle & User selector
+                // Actions: Notifications bell, Offline toggle & User selector
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Notifications bell with badge
+                    IconButton(
+                        onClick = onOpenNotifications,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .testTag("top_bar_notifications_btn")
+                    ) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadNotificationCount > 0) {
+                                    Badge(
+                                        containerColor = CtaOrange,
+                                        contentColor = Color.White
+                                    ) {
+                                        Text("$unreadNotificationCount", fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (unreadNotificationCount > 0) Icons.Default.NotificationsActive else Icons.Outlined.Notifications,
+                                contentDescription = "Notifications",
+                                tint = if (unreadNotificationCount > 0) CtaOrange else OceanBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
                     // Offline badge toggle (for persona Modou with limited data!)
                     FilterChip(
                         selected = isOfflineMode,
@@ -306,8 +336,13 @@ fun TrackRowItem(
     hasLiveEvent: Boolean = false,
     onPlayClick: () -> Unit,
     onDownloadClick: () -> Unit,
-    onLiveEventClick: (() -> Unit)? = null
+    onLiveEventClick: (() -> Unit)? = null,
+    onAddToPlaylistClick: (() -> Unit)? = null,
+    onArtistBioClick: (() -> Unit)? = null,
+    onShareClick: (() -> Unit)? = null
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Surface(
         color = if (isCurrentTrack) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp),
@@ -414,10 +449,10 @@ fun TrackRowItem(
                 }
             }
 
-            // Right actions: Download button & Duration
+            // Right actions: Download button, Duration & More options menu
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 IconButton(
                     onClick = onDownloadClick,
@@ -437,6 +472,79 @@ fun TrackRowItem(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     fontSize = 11.sp
                 )
+
+                if (onAddToPlaylistClick != null || onArtistBioClick != null || onShareClick != null) {
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Options",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            if (onAddToPlaylistClick != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Ajouter à une playlist", fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.PlaylistAdd,
+                                            contentDescription = null,
+                                            tint = OceanBlue,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onAddToPlaylistClick()
+                                    }
+                                )
+                            }
+                            if (onArtistBioClick != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Fiche & Bio Artiste", fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = NetYellowDark,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onArtistBioClick()
+                                    }
+                                )
+                            }
+                            if (onShareClick != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Partager (WhatsApp / SMS)", fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Share,
+                                            contentDescription = null,
+                                            tint = CtaOrange,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onShareClick()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

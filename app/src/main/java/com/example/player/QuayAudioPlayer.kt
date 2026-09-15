@@ -1,9 +1,11 @@
 package com.example.player
 
 import android.content.Context
+import com.example.data.model.EqualizerProfile
 import com.example.data.model.EventEntity
 import com.example.data.model.TrackEntity
 import com.example.data.repository.QuayGuetRepository
+import com.example.util.PlaybackNotificationHelper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +20,10 @@ data class PlaybackState(
     val isShuffle: Boolean = false,
     val isRepeat: Boolean = false,
     val quality: String = "HIGH", // "LOW" 128kbps or "HIGH" 320kbps
-    val isOfflineModeActive: Boolean = false
+    val isOfflineModeActive: Boolean = false,
+    val equalizerProfile: EqualizerProfile = EqualizerProfile.PRESETS.first(),
+    val bassBoostPercent: Int = 45,
+    val isEqualizerEnabled: Boolean = true
 )
 
 class QuayAudioPlayer(
@@ -59,6 +64,8 @@ class QuayAudioPlayer(
                 durationSec = track.durationSec
             )
 
+            PlaybackNotificationHelper.updatePlaybackNotification(context, track, isPlaying = true)
+            QuayPlaybackService.start(context, track, isPlaying = true)
             startProgressTicker()
         }
     }
@@ -72,6 +79,11 @@ class QuayAudioPlayer(
 
         val newPlaying = !current.isPlaying
         _playbackState.value = current.copy(isPlaying = newPlaying)
+
+        PlaybackNotificationHelper.updatePlaybackNotification(context, current.currentTrack, isPlaying = newPlaying)
+        current.currentTrack?.let {
+            QuayPlaybackService.start(context, it, isPlaying = newPlaying)
+        }
 
         if (newPlaying) {
             startProgressTicker()
@@ -121,6 +133,42 @@ class QuayAudioPlayer(
         val current = _playbackState.value
         val newMode = !current.isOfflineModeActive
         _playbackState.value = current.copy(isOfflineModeActive = newMode)
+    }
+
+    fun setEqualizerProfile(profile: EqualizerProfile) {
+        _playbackState.value = _playbackState.value.copy(
+            equalizerProfile = profile,
+            bassBoostPercent = profile.bassBoostPercent
+        )
+    }
+
+    fun setBandGain(bandIndex: Int, gainDb: Float) {
+        val current = _playbackState.value
+        val currentBands = current.equalizerProfile.bandsDb.toMutableList()
+        if (bandIndex in currentBands.indices) {
+            currentBands[bandIndex] = gainDb.coerceIn(-12f, 12f)
+            val customProfile = current.equalizerProfile.copy(
+                id = "custom",
+                name = "Personnalisé",
+                bandsDb = currentBands
+            )
+            _playbackState.value = current.copy(equalizerProfile = customProfile)
+        }
+    }
+
+    fun resetEqualizerBands() {
+        val flat = EqualizerProfile.PRESETS.find { it.id == "flat" }
+            ?: EqualizerProfile("flat", "Équilibré", 0, listOf(0f, 0f, 0f, 0f, 0f))
+        setEqualizerProfile(flat)
+    }
+
+    fun setBassBoost(percent: Int) {
+        _playbackState.value = _playbackState.value.copy(bassBoostPercent = percent.coerceIn(0, 100))
+    }
+
+    fun toggleEqualizer() {
+        val current = _playbackState.value
+        _playbackState.value = current.copy(isEqualizerEnabled = !current.isEqualizerEnabled)
     }
 
     private fun startProgressTicker() {

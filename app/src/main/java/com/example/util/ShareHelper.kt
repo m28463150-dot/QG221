@@ -22,6 +22,11 @@ object ShareHelper {
         shareTextInternal(context, shareText, "Partager ce morceau", toWhatsApp)
     }
 
+    fun shareTrackOnWhatsApp(context: Context, title: String, artist: String, link: String) {
+        val shareText = "🎵 *$title* - $artist\n🌊 Écoute sur *QUAY GUETT 221* (Sénégal) :\n$link\n\n#QuayGuett221 #MusiqueGalsen #SaintLouis"
+        shareTextInternal(context, shareText, "Partager sur WhatsApp", toWhatsApp = true)
+    }
+
     fun shareEvent(context: Context, event: EventEntity, toWhatsApp: Boolean = false) {
         val shareText = buildString {
             append("🎤 *CONCERT LIVE : ${event.title}*")

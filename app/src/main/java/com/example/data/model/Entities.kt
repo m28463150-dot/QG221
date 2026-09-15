@@ -163,3 +163,56 @@ data class ArtistBio(
     val monthlyListeners: Int
 )
 
+@Entity(tableName = "track_comments")
+data class TrackCommentEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val trackId: String,
+    val authorName: String,
+    val text: String,
+    val timestampSec: Int = 0, // 0 if general comment, or specific second of track
+    val timestampText: String = "", // e.g. "01:45"
+    val likesCount: Int = 0,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "artist_tips")
+data class ArtistTipEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val artistId: String,
+    val artistName: String,
+    val trackId: String? = null,
+    val trackTitle: String? = null,
+    val senderName: String,
+    val amountCfa: Int,
+    val provider: String = "Wave", // "Wave", "Orange Money"
+    val message: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class EqualizerProfile(
+    val id: String,
+    val name: String,
+    val bassBoostPercent: Int, // 0 to 100
+    val bandsDb: List<Float> // 5 bands in dB: 60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz
+) {
+    companion object {
+        val PRESETS = listOf(
+            EqualizerProfile("mbalax", "Mbalax", 50, listOf(5f, 3f, 0f, 4f, 5f)),
+            EqualizerProfile("hiphop", "Hip-Hop", 65, listOf(7f, 4f, -1.5f, 2.5f, 4f)),
+            EqualizerProfile("acoustique", "Acoustique", 20, listOf(2f, 2f, 4f, 3f, 2f)),
+            EqualizerProfile("vocal", "Vocal", 15, listOf(-2f, 1f, 4f, 3f, 1f)),
+            EqualizerProfile("flat", "Équilibré", 0, listOf(0f, 0f, 0f, 0f, 0f)),
+            EqualizerProfile("custom", "Personnalisé", 30, listOf(0f, 0f, 0f, 0f, 0f))
+        )
+    }
+}
+
+data class ChartRankItem(
+    val track: TrackEntity,
+    val rank: Int,
+    val previousRank: Int,
+    val trend: String, // "UP", "DOWN", "SAME", "NEW"
+    val weeklyStreams: Int
+)
+
+

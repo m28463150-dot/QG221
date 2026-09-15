@@ -54,6 +54,14 @@ fun QuayGuetApp(
 
     val isProUser by viewModel.isProUser.collectAsStateWithLifecycle()
 
+    val activeCommentsTrack by viewModel.activeCommentsTrack.collectAsStateWithLifecycle()
+    val currentComments by viewModel.currentTrackComments.collectAsStateWithLifecycle()
+    val tippingTrack by viewModel.tippingTrack.collectAsStateWithLifecycle()
+    val isEqualizerOpen by viewModel.isEqualizerOpen.collectAsStateWithLifecycle()
+    val dynamicCharts by viewModel.dynamicCharts.collectAsStateWithLifecycle()
+    val selectedChartPeriod by viewModel.selectedChartPeriod.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -119,6 +127,19 @@ fun QuayGuetApp(
                     )
 
                     NavigationBarItem(
+                        selected = currentScreen is ScreenNav.TopCharts,
+                        onClick = { viewModel.navigateTo(ScreenNav.TopCharts) },
+                        icon = {
+                            Icon(
+                                if (currentScreen is ScreenNav.TopCharts) Icons.Filled.Leaderboard else Icons.Outlined.Leaderboard,
+                                contentDescription = "Charts"
+                            )
+                        },
+                        label = { Text("Charts", fontSize = 11.sp, fontWeight = if (currentScreen is ScreenNav.TopCharts) FontWeight.Bold else FontWeight.Normal) },
+                        modifier = Modifier.testTag("nav_item_charts")
+                    )
+
+                    NavigationBarItem(
                         selected = currentScreen is ScreenNav.Library,
                         onClick = { viewModel.navigateTo(ScreenNav.Library) },
                         icon = {
@@ -180,7 +201,8 @@ fun QuayGuetApp(
                         onDownloadTrack = { viewModel.toggleDownload(it) },
                         onSelectEvent = { viewModel.navigateTo(ScreenNav.EventDetail(it.id)) },
                         onNavigateToEvents = { viewModel.navigateTo(ScreenNav.Events) },
-                        onNavigateToPro = { viewModel.navigateTo(ScreenNav.ProUpgrade) }
+                        onNavigateToPro = { viewModel.navigateTo(ScreenNav.ProUpgrade) },
+                        onNavigateToCharts = { viewModel.navigateTo(ScreenNav.TopCharts) }
                     )
                 }
 
@@ -197,6 +219,27 @@ fun QuayGuetApp(
                     EventsCatalogScreen(
                         events = allEvents,
                         onSelectEvent = { viewModel.navigateTo(ScreenNav.EventDetail(it.id)) },
+                        onBackClick = { viewModel.navigateTo(ScreenNav.Home) }
+                    )
+                }
+
+                is ScreenNav.TopCharts -> {
+                    TopChartsScreen(
+                        charts = dynamicCharts,
+                        selectedPeriod = selectedChartPeriod,
+                        onPeriodSelect = { viewModel.setChartPeriod(it) },
+                        onTrackClick = { viewModel.playTrack(it) },
+                        onAddToPlaylist = { viewModel.openAddToPlaylist(it) },
+                        onOpenComments = { viewModel.openComments(it) },
+                        onTipArtist = { viewModel.openTipModal(it) },
+                        onShareTrack = { track ->
+                            com.example.util.ShareHelper.shareTrackOnWhatsApp(
+                                context = context,
+                                title = track.title,
+                                artist = track.artistName,
+                                link = "https://quayguett221.sn/track/${track.id}"
+                            )
+                        },
                         onBackClick = { viewModel.navigateTo(ScreenNav.Home) }
                     )
                 }
@@ -357,7 +400,46 @@ fun QuayGuetApp(
             onDownloadClick = { viewModel.toggleDownload(it) },
             onLiveEventClick = { event ->
                 viewModel.navigateTo(ScreenNav.EventDetail(event.id))
-            }
+            },
+            onOpenComments = { viewModel.openComments(it) },
+            onOpenTipModal = { viewModel.openTipModal(it) },
+            onOpenEqualizer = { viewModel.openEqualizer() }
+        )
+    }
+
+    // Modal Espace Commentaires (Audiomack / Boomplay Community Feature)
+    if (activeCommentsTrack != null) {
+        TrackCommentsSheet(
+            track = activeCommentsTrack!!,
+            comments = currentComments,
+            currentTrackPositionSec = playbackState.currentPositionSec,
+            onDismiss = { viewModel.closeComments() },
+            onPostComment = { text, sec, txt -> viewModel.postComment(text, sec, txt) },
+            onLikeComment = { viewModel.likeComment(it) }
+        )
+    }
+
+    // Modal Pourboire & Soutien Artiste (Wave / Orange Money)
+    if (tippingTrack != null) {
+        TipArtistDialog(
+            track = tippingTrack!!,
+            onDismiss = { viewModel.closeTipModal() },
+            onSendTip = { amount, provider, msg -> viewModel.sendTip(amount, provider, msg) }
+        )
+    }
+
+    // Modal Égaliseur Audio Graphique & Bass Boost (Boomplay Style)
+    if (isEqualizerOpen) {
+        AudioEqualizerSheet(
+            isEqualizerEnabled = playbackState.isEqualizerEnabled,
+            currentProfile = playbackState.equalizerProfile,
+            bassBoostPercent = playbackState.bassBoostPercent,
+            onDismiss = { viewModel.closeEqualizer() },
+            onToggleEqualizer = { viewModel.toggleEqualizer() },
+            onSelectProfile = { viewModel.setEqualizerProfile(it) },
+            onBandGainChange = { bandIndex, gainDb -> viewModel.setBandGain(bandIndex, gainDb) },
+            onResetBands = { viewModel.resetEqualizerBands() },
+            onBassBoostChange = { viewModel.setBassBoost(it) }
         )
     }
 }

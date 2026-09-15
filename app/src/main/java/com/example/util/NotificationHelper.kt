@@ -56,4 +56,22 @@ object NotificationHelper {
             // Android 13+ POST_NOTIFICATIONS permission might not be granted yet, fallback gracefully
         }
     }
+
+    fun notifyConcertReminder(context: Context, event: com.example.data.model.EventEntity) {
+        showSystemNotification(
+            context = context,
+            id = event.id.hashCode(),
+            title = "⏰ Rappel Concert : ${event.title}",
+            message = "Votre concert à ${event.venueName} a lieu bientôt (${event.dateTimeText}) ! Préparez vos billets QR code dans l'application."
+        )
+    }
+
+    fun notifyNewRelease(context: Context, track: com.example.data.model.TrackEntity) {
+        showSystemNotification(
+            context = context,
+            id = track.id.hashCode(),
+            title = "🔥 Nouveau Titre Disponible !",
+            message = "« ${track.title} » par ${track.artistName} est maintenant en écoute sur Quay Guett 221."
+        )
+    }
 }

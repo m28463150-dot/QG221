@@ -18,9 +18,11 @@ import com.example.data.model.*
         ArtistWalletEntity::class,
         PlaylistEntity::class,
         PlaylistTrackCrossRef::class,
-        AppNotificationEntity::class
+        AppNotificationEntity::class,
+        TrackCommentEntity::class,
+        ArtistTipEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class QuayGuetDatabase : RoomDatabase() {
@@ -31,6 +33,8 @@ abstract class QuayGuetDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun commentDao(): CommentDao
+    abstract fun tipDao(): TipDao
 
     companion object {
         @Volatile

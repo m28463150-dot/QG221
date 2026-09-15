@@ -4,10 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,31 +18,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.model.PlaylistEntity
 import com.example.data.model.TicketEntity
 import com.example.data.model.TrackEntity
+import com.example.ui.components.CreatePlaylistDialog
+import com.example.ui.components.PlaylistCardItem
 import com.example.ui.components.QrCodeView
 import com.example.ui.components.TrackRowItem
 import com.example.ui.theme.*
+import com.example.util.ShareHelper
+import com.example.util.TicketExportHelper
 
 @Composable
 fun LibraryScreen(
     tickets: List<TicketEntity>,
     downloadedTracks: List<TrackEntity>,
     favoriteTracks: List<TrackEntity>,
+    playlists: List<PlaylistEntity> = emptyList(),
     onPlayTrack: (TrackEntity) -> Unit,
     onDeleteDownload: (TrackEntity) -> Unit,
     onPurgeAllDownloads: () -> Unit,
     onTransferTicket: (String, String) -> Unit,
-    onNavigateToEvents: () -> Unit
+    onNavigateToEvents: () -> Unit,
+    onSelectPlaylist: (PlaylistEntity) -> Unit = {},
+    onCreatePlaylist: (String, String) -> Unit = { _, _ -> },
+    onPlayPlaylist: (PlaylistEntity) -> Unit = {},
+    onDeletePlaylist: (String) -> Unit = {},
+    onAddToPlaylistClick: ((TrackEntity) -> Unit)? = null,
+    onArtistBioClick: ((String) -> Unit)? = null,
+    onShareTrackClick: ((TrackEntity) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Mes Tickets", "Téléchargements", "Favoris", "Historique")
+    val tabs = listOf("Mes Tickets", "Playlists", "Téléchargements", "Favoris")
+
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     // State for QR zoom and transfer
     var zoomedTicket by remember { mutableStateOf<TicketEntity?>(null) }
@@ -158,6 +178,12 @@ fun LibraryScreen(
                                 onTransferClick = {
                                     transferTicketTarget = ticket
                                     transferPhoneInput = "+221 "
+                                },
+                                onSaveToGallery = {
+                                    TicketExportHelper.generateAndSaveTicketImage(context, ticket)
+                                },
+                                onShareWhatsApp = {
+                                    ShareHelper.shareTicket(context, ticket, toWhatsApp = true)
                                 }
                             )
                         }
@@ -166,7 +192,139 @@ fun LibraryScreen(
             }
 
             1 -> {
-                // TAB 2: TÉLÉCHARGEMENTS (Module A4 Offline First)
+                // TAB 2: PLAYLISTS PERSONNALISÉES
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Mes Listes de Lecture",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "${playlists.size} playlist(s) personnalisée(s)",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+
+                        Button(
+                            onClick = { showCreatePlaylistDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Créer", fontSize = 12.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Suggestions rapides pour l'utilisateur
+                    Text(
+                        text = "IDÉES POPULAIRES :",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        color = OceanBlue,
+                        letterSpacing = 0.8.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val suggestions = listOf(
+                            "Ndawrabine Vibes" to "Rythmes traditionnels Lebou & pêcheurs de Guet Ndar",
+                            "Saint-Louis Jazz" to "Ambiance feutrée de l'île et de l'Institut",
+                            "Soirée Guet Ndar" to "L'ambiance festive des quais nocturnes",
+                            "Acoustic Kora" to "Cordes douces et mélodies fluviales"
+                        )
+                        items(suggestions) { (title, desc) ->
+                            SuggestionChip(
+                                onClick = { onCreatePlaylist(title, desc) },
+                                label = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                icon = {
+                                    Icon(
+                                        Icons.Default.PlaylistAdd,
+                                        contentDescription = null,
+                                        tint = NetYellowDark,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (playlists.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QueueMusic,
+                                    contentDescription = null,
+                                    tint = OceanBlue.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Text(
+                                    text = "Aucune playlist pour l'instant",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Text(
+                                    text = "Créez votre première liste de lecture (ex: « Ndawrabine Vibes ») pour rassembler vos morceaux !",
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = { showCreatePlaylistDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = OceanBlue)
+                                ) {
+                                    Text("Créer une playlist")
+                                }
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 120.dp)
+                        ) {
+                            items(playlists) { pl ->
+                                PlaylistCardItem(
+                                    playlist = pl,
+                                    onClick = { onSelectPlaylist(pl) },
+                                    onPlayClick = { onPlayPlaylist(pl) },
+                                    onDeleteClick = { onDeletePlaylist(pl.id) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            2 -> {
+                // TAB 3: TÉLÉCHARGEMENTS (Module A4 Offline First)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -225,7 +383,10 @@ fun LibraryScreen(
                                     isPlaying = false,
                                     isCurrentTrack = false,
                                     onPlayClick = { onPlayTrack(track) },
-                                    onDownloadClick = { onDeleteDownload(track) }
+                                    onDownloadClick = { onDeleteDownload(track) },
+                                    onAddToPlaylistClick = onAddToPlaylistClick?.let { { it(track) } },
+                                    onArtistBioClick = onArtistBioClick?.let { { it(track.artistId) } },
+                                    onShareClick = onShareTrackClick?.let { { it(track) } }
                                 )
                             }
                         }
@@ -233,8 +394,8 @@ fun LibraryScreen(
                 }
             }
 
-            2 -> {
-                // TAB 3: FAVORIS
+            else -> {
+                // TAB 4: FAVORIS
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 120.dp),
@@ -246,26 +407,10 @@ fun LibraryScreen(
                             isPlaying = false,
                             isCurrentTrack = false,
                             onPlayClick = { onPlayTrack(track) },
-                            onDownloadClick = { }
-                        )
-                    }
-                }
-            }
-
-            else -> {
-                // TAB 4: HISTORIQUE
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 120.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(favoriteTracks.take(5)) { track ->
-                        TrackRowItem(
-                            track = track,
-                            isPlaying = false,
-                            isCurrentTrack = false,
-                            onPlayClick = { onPlayTrack(track) },
-                            onDownloadClick = { }
+                            onDownloadClick = { },
+                            onAddToPlaylistClick = onAddToPlaylistClick?.let { { it(track) } },
+                            onArtistBioClick = onArtistBioClick?.let { { it(track.artistId) } },
+                            onShareClick = onShareTrackClick?.let { { it(track) } }
                         )
                     }
                 }
@@ -336,9 +481,65 @@ fun LibraryScreen(
                         color = if (t.status == "valid") SuccessGreen else ErrorRed
                     )
 
-                    Button(
+                    // Export physique et partage WhatsApp
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                TicketExportHelper.generateAndSaveTicketImage(context, t)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sauvegarder dans la Galerie Photo", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    ShareHelper.shareTicket(context, t, toWhatsApp = true)
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = SuccessGreen.copy(alpha = 0.2f),
+                                    contentColor = SuccessGreen
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    TicketExportHelper.shareTicketImage(context, t)
+                                },
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = NetYellow.copy(alpha = 0.25f),
+                                    contentColor = OceanBlueDark
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Partager Pass", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
                         onClick = { zoomedTicket = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = OceanBlue),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Fermer le plein écran")
@@ -346,6 +547,17 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    // CREATE PLAYLIST MODAL
+    if (showCreatePlaylistDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreatePlaylistDialog = false },
+            onConfirm = { title, desc ->
+                showCreatePlaylistDialog = false
+                onCreatePlaylist(title, desc)
+            }
+        )
     }
 
     // TRANSFER TICKET MODAL
@@ -401,7 +613,9 @@ fun LibraryScreen(
 fun TicketCardItem(
     ticket: TicketEntity,
     onZoomQr: () -> Unit,
-    onTransferClick: () -> Unit
+    onTransferClick: () -> Unit,
+    onSaveToGallery: () -> Unit,
+    onShareWhatsApp: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -494,29 +708,60 @@ fun TicketCardItem(
             Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(6.dp))
 
+            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onZoomQr,
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Agrandir le QR", fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = onZoomQr,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Icon(Icons.Default.ZoomIn, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("QR", fontSize = 11.sp)
+                    }
+
+                    FilledTonalButton(
+                        onClick = onSaveToGallery,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = OceanBlue.copy(alpha = 0.12f),
+                            contentColor = OceanBlue
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Pass", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    FilledTonalButton(
+                        onClick = onShareWhatsApp,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = SuccessGreen.copy(alpha = 0.15f),
+                            contentColor = SuccessGreen
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("WhatsApp", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 if (ticket.status == "valid") {
                     OutlinedButton(
                         onClick = onTransferClick,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Transférer à un ami", fontSize = 11.sp)
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Transférer", fontSize = 10.sp)
                     }
                 }
             }

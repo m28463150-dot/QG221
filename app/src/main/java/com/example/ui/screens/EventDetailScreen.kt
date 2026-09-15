@@ -32,6 +32,8 @@ import com.example.data.model.TicketTypeEntity
 import com.example.data.model.TrackEntity
 import com.example.ui.components.TrackRowItem
 import com.example.ui.theme.*
+import com.example.util.NotificationHelper
+import com.example.util.ShareHelper
 
 @Composable
 fun EventDetailScreen(
@@ -146,7 +148,7 @@ fun EventDetailScreen(
                             )
                     )
 
-                    // Back button & Verified tag
+                    // Back button & Actions
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -166,27 +168,58 @@ fun EventDetailScreen(
                             )
                         }
 
-                        Surface(
-                            color = NetYellow,
-                            shape = RoundedCornerShape(6.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            FilledIconButton(
+                                onClick = {
+                                    NotificationHelper.notifyConcertReminder(context, event)
+                                },
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.Black.copy(alpha = 0.5f))
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = null,
-                                    tint = OceanBlueDark,
-                                    modifier = Modifier.size(14.dp)
+                                    imageVector = Icons.Default.NotificationsActive,
+                                    contentDescription = "Rappel Concert",
+                                    tint = NetYellow
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "BILLET OFFICIEL 221",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = OceanBlueDark
+                            }
+
+                            FilledIconButton(
+                                onClick = {
+                                    ShareHelper.shareEvent(context, event, toWhatsApp = true)
+                                },
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.Black.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Partager WhatsApp",
+                                    tint = SuccessGreen
                                 )
+                            }
+
+                            Surface(
+                                color = NetYellow,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Verified,
+                                        contentDescription = null,
+                                        tint = OceanBlueDark,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "OFFICIEL 221",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = OceanBlueDark
+                                    )
+                                }
                             }
                         }
                     }

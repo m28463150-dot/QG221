@@ -5,8 +5,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -32,6 +35,7 @@ import com.example.data.model.EventEntity
 import com.example.data.model.TrackEntity
 import com.example.player.PlaybackState
 import com.example.ui.theme.*
+import com.example.util.ShareHelper
 
 @Composable
 fun PersistentMiniPlayer(
@@ -207,11 +211,18 @@ fun FullPlayerSheet(
     onToggleRepeat: () -> Unit,
     onChangeQuality: (String) -> Unit,
     onDownloadClick: (TrackEntity) -> Unit,
-    onLiveEventClick: (EventEntity) -> Unit
+    onLiveEventClick: (EventEntity) -> Unit,
+    onOpenArtistBio: ((String) -> Unit)? = null,
+    onAddToPlaylist: ((TrackEntity) -> Unit)? = null,
+    onOpenComments: ((TrackEntity) -> Unit)? = null,
+    onOpenTipModal: ((TrackEntity) -> Unit)? = null,
+    onOpenEqualizer: (() -> Unit)? = null
 ) {
     val track = playbackState.currentTrack ?: return
+    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var showShareSnackbar by remember { mutableStateOf(false) }
+    var showLyricsDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -444,6 +455,155 @@ fun FullPlayerSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Community & Audio Features Row (Audiomack / Boomplay Style)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(NightSurface.copy(alpha = 0.6f))
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Comments Button
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onOpenComments?.invoke(track) }
+                ) {
+                    IconButton(
+                        onClick = { onOpenComments?.invoke(track) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ChatBubbleOutline,
+                            contentDescription = "Commentaires",
+                            tint = OceanBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Avis",
+                        fontSize = 10.sp,
+                        color = SandWhite.copy(alpha = 0.8f)
+                    )
+                }
+
+                // Tip Artist Button
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onOpenTipModal?.invoke(track) }
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = NetYellow.copy(alpha = 0.2f),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        IconButton(onClick = { onOpenTipModal?.invoke(track) }) {
+                            Icon(
+                                imageVector = Icons.Default.VolunteerActivism,
+                                contentDescription = "Pourboire",
+                                tint = NetYellow,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Pourboire",
+                        fontSize = 10.sp,
+                        color = NetYellow,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Equalizer Button
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onOpenEqualizer?.invoke() }
+                ) {
+                    IconButton(
+                        onClick = { onOpenEqualizer?.invoke() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Equalizer,
+                            contentDescription = "Égaliseur",
+                            tint = if (playbackState.isEqualizerEnabled) CtaOrange else SandWhite.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = if (playbackState.isEqualizerEnabled) playbackState.equalizerProfile.name else "Égaliseur",
+                        fontSize = 10.sp,
+                        fontWeight = if (playbackState.isEqualizerEnabled) FontWeight.Bold else FontWeight.Normal,
+                        color = if (playbackState.isEqualizerEnabled) CtaOrange else SandWhite.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Download Button
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onDownloadClick(track) }
+                ) {
+                    IconButton(
+                        onClick = { onDownloadClick(track) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (track.isDownloaded) Icons.Default.DownloadDone else Icons.Default.Download,
+                            contentDescription = "Télécharger",
+                            tint = if (track.isDownloaded) SuccessGreen else SandWhite.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = if (track.isDownloaded) "Prêt" else "Télécharger",
+                        fontSize = 10.sp,
+                        color = SandWhite.copy(alpha = 0.8f)
+                    )
+                }
+
+                // Share WhatsApp Button
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        com.example.util.ShareHelper.shareTrackOnWhatsApp(
+                            context = context,
+                            title = track.title,
+                            artist = track.artistName,
+                            link = "https://quayguett221.sn/track/${track.id}"
+                        )
+                    }
+                ) {
+                    IconButton(
+                        onClick = {
+                            com.example.util.ShareHelper.shareTrackOnWhatsApp(
+                                context = context,
+                                title = track.title,
+                                artist = track.artistName,
+                                link = "https://quayguett221.sn/track/${track.id}"
+                            )
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Partager",
+                            tint = SandWhite.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Partager",
+                        fontSize = 10.sp,
+                        color = SandWhite.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // =========================================================================
             // INNOVATION MAJEURE DU CAHIER DES CHARGES: CTA CONTEXTUEL 'VOIR EN LIVE'
             // =========================================================================
@@ -535,7 +695,100 @@ fun FullPlayerSheet(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Secondary Actions: Download and Share
+            // Quick Actions: Playlist, Artiste Bio, Paroles, WhatsApp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Ajouter à une playlist
+                FilledTonalButton(
+                    onClick = {
+                        onDismiss()
+                        onAddToPlaylist?.invoke(track)
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = NightCard,
+                        contentColor = SandWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistAdd,
+                        contentDescription = null,
+                        tint = NetYellow,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+ Playlist", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // Fiche Artiste & Bio
+                FilledTonalButton(
+                    onClick = {
+                        onDismiss()
+                        onOpenArtistBio?.invoke(track.artistId)
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = NightCard,
+                        contentColor = SandWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = OceanBlueLight,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Bio Artiste", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // Paroles
+                FilledTonalButton(
+                    onClick = { showLyricsDialog = true },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = NightCard,
+                        contentColor = SandWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = CtaOrange,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Paroles", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // WhatsApp Direct Share
+                FilledTonalButton(
+                    onClick = { ShareHelper.shareTrack(context, track, toWhatsApp = true) },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = SuccessGreen.copy(alpha = 0.2f),
+                        contentColor = SuccessGreen
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        tint = SuccessGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Secondary Actions: Download and Share Link
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -558,11 +811,7 @@ fun FullPlayerSheet(
                 }
 
                 TextButton(
-                    onClick = {
-                        val shareLink = "https://quayguet221.sn/track/${track.id}"
-                        clipboard.setText(AnnotatedString(shareLink))
-                        showShareSnackbar = true
-                    },
+                    onClick = { ShareHelper.shareTrack(context, track, toWhatsApp = false) },
                     colors = ButtonDefaults.textButtonColors(contentColor = SandWhite.copy(alpha = 0.8f))
                 ) {
                     Icon(
@@ -572,7 +821,7 @@ fun FullPlayerSheet(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "Partager le son", fontSize = 12.sp)
+                    Text(text = "Partager lien", fontSize = 12.sp)
                 }
             }
 
@@ -583,6 +832,96 @@ fun FullPlayerSheet(
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )
+            }
+        }
+    }
+
+    // LYRICS DIALOG MODAL (Wolof & Français)
+    if (showLyricsDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showLyricsDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = NightSurface,
+                border = CardDefaults.outlinedCardBorder().copy(brush = Brush.linearGradient(listOf(NetYellow, OceanBlueLight))),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.75f)
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "PAROLES & LYRICS",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = NetYellow,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = track.title,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = SandWhite
+                            )
+                            Text(
+                                text = "${track.artistName} • Wolof & Français",
+                                fontSize = 12.sp,
+                                color = SandWhite.copy(alpha = 0.6f)
+                            )
+                        }
+
+                        IconButton(onClick = { showLyricsDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Fermer", tint = SandWhite)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Divider(color = Color.White.copy(alpha = 0.1f))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    val scrollState = rememberScrollState()
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(scrollState)
+                    ) {
+                        val displayLyrics = if (track.lyrics.isNotBlank()) {
+                            track.lyrics
+                        } else {
+                            "Ndawrabine bi ci Quai Ndar,\nSunu coono, sunu mbégte ak mbër yi.\n\nSénégal sunu réew, nio ko bokk.\nDegg na ndaje ma ca pont Faidherbe ba ci Quai de pêche.\n\n(Paroles complètes synchronisées Quai Guett 221)"
+                        }
+
+                        Text(
+                            text = displayLyrics,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                lineHeight = 26.sp,
+                                fontSize = 15.sp
+                            ),
+                            color = SandWhite,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            ShareHelper.shareTrack(context, track, toWhatsApp = true)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Partager les paroles sur WhatsApp")
+                    }
+                }
             }
         }
     }

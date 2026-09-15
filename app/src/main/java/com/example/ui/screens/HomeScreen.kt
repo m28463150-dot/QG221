@@ -46,7 +46,11 @@ fun HomeScreen(
     onDownloadTrack: (TrackEntity) -> Unit,
     onSelectEvent: (EventEntity) -> Unit,
     onNavigateToEvents: () -> Unit,
-    onNavigateToPro: (() -> Unit)? = null
+    onNavigateToPro: (() -> Unit)? = null,
+    onAddToPlaylist: ((TrackEntity) -> Unit)? = null,
+    onOpenArtistBio: ((String) -> Unit)? = null,
+    onShareTrack: ((TrackEntity) -> Unit)? = null,
+    onNavigateToCharts: (() -> Unit)? = null
 ) {
     var selectedGenre by remember { mutableStateOf("Tous") }
     val genres = listOf("Tous", "Mbalax", "Rap Galsen", "Afrobeat", "Acoustic", "Amapiano")
@@ -506,7 +510,8 @@ fun HomeScreen(
                 SectionHeader(
                     title = "Top 10 de la Semaine",
                     subtitle = "Classement officiel QUAY GUET 221",
-                    actionText = ""
+                    actionText = "Charts 221 🔥",
+                    onActionClick = { onNavigateToCharts?.invoke() }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -533,7 +538,10 @@ fun HomeScreen(
                                 onLiveEventClick = {
                                     val evt = events.firstOrNull()
                                     if (evt != null) onSelectEvent(evt)
-                                }
+                                },
+                                onAddToPlaylistClick = onAddToPlaylist?.let { { it(track) } },
+                                onArtistBioClick = onOpenArtistBio?.let { { it(track.artistId) } },
+                                onShareClick = onShareTrack?.let { { it(track) } }
                             )
                         }
                     }
